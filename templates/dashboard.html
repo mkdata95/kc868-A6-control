@@ -98,6 +98,8 @@
             box-shadow: 0 8px 25px rgba(0,0,0,0.12);
         }
         
+
+        
         .switch-card.active {
             background: #007aff;
             color: white;
@@ -330,7 +332,7 @@
         <div class="header fade-in">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <h1>EasySign KC868-A6 Control</h1>
+                    <h1>EasySign Control A6</h1>
                     <p>스마트 릴레이 컨트롤러</p>
                 </div>
                 <div id="connection-status" class="status-indicator status-loading">
@@ -368,6 +370,10 @@
                     <i class="fas fa-undo me-2"></i>
                     아이콘 리셋
                 </button>
+                <a href="/debug" class="btn-apple" style="background: #8e44ad; text-decoration: none;" title="실시간 디버깅 및 문제 해결">
+                    <i class="fas fa-bug me-2"></i>
+                    디버그 모드
+                </a>
             </div>
         </div>
 
@@ -397,15 +403,22 @@
                                     </select>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">요일</label>
+                                    <label class="form-label">요일 선택</label>
                                     <select class="form-select" id="scheduleDayOfWeek" style="border-radius: 12px;">
-                                        <option value="0">월요일</option>
-                                        <option value="1">화요일</option>
-                                        <option value="2">수요일</option>
-                                        <option value="3">목요일</option>
-                                        <option value="4">금요일</option>
-                                        <option value="5">토요일</option>
-                                        <option value="6">일요일</option>
+                                        <optgroup label="📅 그룹 설정 (추천)">
+                                            <option value="weekdays" style="font-weight: bold; color: #007aff;">월~금 (주중)</option>
+                                            <option value="everyday" style="font-weight: bold; color: #ff9500;">월~일 (매일)</option>
+                                            <option value="weekend" style="font-weight: bold; color: #34c759;">토~일 (주말)</option>
+                                        </optgroup>
+                                        <optgroup label="📋 개별 요일">
+                                            <option value="0">월요일</option>
+                                            <option value="1">화요일</option>
+                                            <option value="2">수요일</option>
+                                            <option value="3">목요일</option>
+                                            <option value="4">금요일</option>
+                                            <option value="5">토요일</option>
+                                            <option value="6">일요일</option>
+                                        </optgroup>
                                     </select>
                                 </div>
                                 <div class="col-md-4 mb-3">
@@ -870,13 +883,14 @@
         let switchData = {}; // 이름과 아이콘을 모두 포함
         let isInitialized = false;
         let currentEditingSwitch = null;
+        let lastUserAction = 0; // 마지막 사용자 조작 시간
 
         document.addEventListener('DOMContentLoaded', function() {
             loadSwitchData().then(() => {
                 initializeSwitches();
                 loadSwitchStatus();
             });
-            setInterval(loadSwitchStatus, 5000); // 5초로 조정하여 깜빡임 최소화
+            setInterval(loadSwitchStatus, 12000); // 12초로 증가 - 최대 안정성 확보
             
             // 아이콘 선택 이벤트 리스너
             document.querySelectorAll('.icon-option').forEach(option => {
@@ -890,23 +904,53 @@
         });
 
         async function loadSwitchStatus() {
+            // 사용자가 7초 이내에 조작한 경우 상태 새로고침 건너뛰기 (하드웨어 안정화 대기)
+            const now = Date.now();
+            if (now - lastUserAction < 7000) {
+                console.log('🔄 사용자 조작 후 7초 이내 - 상태 새로고침 건너뛰기');
+                return;
+            }
+            
             try {
                 const response = await fetch('/api/status');
                 if (response.ok) {
-                    switchStates = await response.json();
-                    updateUI();
+                    const newStates = await response.json();
+                    
+                    // 현재 상태와 다른 경우에만 업데이트
+                    let hasChanged = false;
+                    for (const key in newStates) {
+                        if (switchStates[key] !== newStates[key]) {
+                            hasChanged = true;
+                            break;
+                        }
+                    }
+                    
+                    if (hasChanged) {
+                        switchStates = newStates;
+                        updateUI();
+                        console.log('🔄 서버에서 상태 업데이트:', switchStates);
+                    }
+                    
                     updateConnectionStatus(true);
                 } else {
                     throw new Error('API 응답 오류');
                 }
             } catch (error) {
-                console.error('상태 로드 실패:', error);
+                console.error('📡 상태 조회 실패:', error);
                 updateConnectionStatus(false);
-                switchStates = {
-                    "스위치1": "OFF", "스위치2": "OFF", "스위치3": "OFF",
-                    "스위치4": "OFF", "스위치5": "OFF", "스위치6": "OFF"
-                };
-                updateUI();
+                
+                // 연결 실패시에는 상태를 변경하지 않음 (현재 상태 유지)
+                console.log('💾 이전 상태 정보 유지:', switchStates);
+                
+                // 3회 연속 실패시 사용자에게 알림 (선택적)
+                if (!window.connectionFailCount) window.connectionFailCount = 0;
+                window.connectionFailCount++;
+                
+                if (window.connectionFailCount >= 3) {
+                    console.warn('⚠️ 3회 연속 연결 실패 - 네트워크 상태 확인 필요');
+                    // 필요시 사용자 알림 추가 가능
+                    window.connectionFailCount = 0; // 카운터 리셋
+                }
             }
         }
 
@@ -950,21 +994,90 @@
                 switchCard.className = `switch-card fade-in`;
                 switchCard.id = `switch-${i}`;
                 switchCard.onclick = (e) => {
-                    // 라벨 편집 중이 아닐 때만 토글
-                    if (!e.target.classList.contains('switch-label-input')) {
-                        toggleSwitch(i);
+                    // 라벨 편집 중이거나 편집 버튼을 클릭한 경우 토글하지 않음
+                    if (e.target.classList.contains('switch-label-input') || 
+                        e.target.closest('button') ||
+                        e.target.closest('.dropdown')) {
+                        return;
                     }
+
+                    toggleSwitch(i);
                 };
                 
                 switchCard.innerHTML = `
                     <div class="switch-header">
-                        <h4 class="switch-number">스위치 ${i}</h4>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <h4 class="switch-number">스위치 ${i}</h4>
+                            <div class="dropdown" style="position: relative;">
+                                <button class="settings-btn" onclick="toggleSettingsMenu(${i})" title="설정" style="
+                                    width: 20px;
+                                    height: 20px;
+                                    background: rgba(0, 0, 0, 0.05);
+                                    border: none;
+                                    border-radius: 50%;
+                                    color: #86868b;
+                                    font-size: 10px;
+                                    cursor: pointer;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    opacity: 0.6;
+                                    transition: all 0.2s ease;
+                                " onmouseover="this.style.opacity='1'; this.style.background='rgba(0, 0, 0, 0.1)'" onmouseout="this.style.opacity='0.6'; this.style.background='rgba(0, 0, 0, 0.05)'">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                <div id="settings-menu-${i}" class="settings-menu" style="
+                                    position: absolute;
+                                    top: 25px;
+                                    right: 0;
+                                    background: white;
+                                    border-radius: 8px;
+                                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                                    border: 1px solid #e5e5e7;
+                                    min-width: 120px;
+                                    display: none;
+                                    z-index: 1000;
+                                    overflow: hidden;
+                                ">
+                                    <button onclick="editSwitchName(${i}); hideSettingsMenu(${i})" style="
+                                        width: 100%;
+                                        padding: 8px 12px;
+                                        border: none;
+                                        background: none;
+                                        text-align: left;
+                                        cursor: pointer;
+                                        font-size: 12px;
+                                        color: #1d1d1f;
+                                        transition: background 0.2s;
+                                    " onmouseover="this.style.background='#f5f5f7'" onmouseout="this.style.background='none'">
+                                        <i class="fas fa-edit" style="width: 14px; margin-right: 6px; color: #007aff;"></i>
+                                        이름 편집
+                                    </button>
+                                    <button onclick="editSwitchIcon(${i}); hideSettingsMenu(${i})" style="
+                                        width: 100%;
+                                        padding: 8px 12px;
+                                        border: none;
+                                        background: none;
+                                        text-align: left;
+                                        cursor: pointer;
+                                        font-size: 12px;
+                                        color: #1d1d1f;
+                                        transition: background 0.2s;
+                                    " onmouseover="this.style.background='#f5f5f7'" onmouseout="this.style.background='none'">
+                                        <i class="fas fa-palette" style="width: 14px; margin-right: 6px; color: #ff9500;"></i>
+                                        아이콘 편집
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="switch-toggle" id="toggle-${i}"></div>
                     </div>
-                    <div class="switch-body">
-                        <i class="fas ${switchData[i]?.icon || 'fa-power-off'} switch-icon" id="icon-${i}" onclick="editSwitchIcon(${i})" title="클릭하여 아이콘 변경" style="cursor: pointer;"></i>
-                        <div class="switch-label" id="label-${i}" ondblclick="editSwitchName(${i})" title="더블클릭하여 이름 변경">${switchData[i]?.name || `스위치 ${i}`}</div>
+                    <div class="switch-body" style="position: relative;">
+                        <i class="fas ${switchData[i]?.icon || 'fa-power-off'} switch-icon" id="icon-${i}"></i>
+                        <div class="switch-label" id="label-${i}">${switchData[i]?.name || `스위치 ${i}`}</div>
                         <div class="switch-status" id="status-${i}">꺼짐</div>
+                        
+
                     </div>
                 `;
                 
@@ -1006,12 +1119,16 @@
 
         function updateConnectionStatus(connected) {
             const statusEl = document.getElementById('connection-status');
+            const now = new Date().toLocaleTimeString();
+            
             if (connected) {
-                statusEl.innerHTML = '<i class="fas fa-check-circle"></i> 연결됨';
+                statusEl.innerHTML = `<i class="fas fa-check-circle"></i> 연결됨 (${now})`;
                 statusEl.className = 'status-indicator status-connected';
+                statusEl.title = `마지막 성공적인 상태 확인: ${now}`;
             } else {
-                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> 연결 실패';
+                statusEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> 연결 불안정 (${now})`;
                 statusEl.className = 'status-indicator status-disconnected';
+                statusEl.title = `연결 문제 발생 시간: ${now}\n이전 상태 정보를 유지 중입니다.`;
             }
         }
 
@@ -1019,9 +1136,14 @@
             const currentState = switchStates[`스위치${switchNum}`] || 'OFF';
             const newAction = currentState === 'ON' ? 'OFF' : 'ON';
             
+            // 사용자 조작 시간 기록
+            lastUserAction = Date.now();
+            
             // 즉시 UI 업데이트 (부드러운 반응)
             switchStates[`스위치${switchNum}`] = newAction;
             updateUI();
+            
+                                console.log(`🎮 사용자 조작: 스위치${switchNum} ${currentState} → ${newAction} [${new Date().toLocaleTimeString()}]`);
             
             // 클릭 피드백 효과
             const card = document.getElementById(`switch-${switchNum}`);
@@ -1047,7 +1169,46 @@
                 const result = await response.json();
                 if (result.success) {
                     console.log(`✅ 스위치${switchNum} ${newAction} 성공`);
-                    // 성공하면 추가 상태 확인 불필요 - 이미 올바른 상태로 설정됨
+                    
+                    // 제어 성공 후 다중 재확인 (안정성 강화)
+                    let verificationAttempts = 0;
+                    const maxAttempts = 3;
+                    
+                    const verifyState = async () => {
+                        verificationAttempts++;
+                        
+                        try {
+                            const statusResponse = await fetch('/api/status');
+                            if (statusResponse.ok) {
+                                const serverStates = await statusResponse.json();
+                                const serverState = serverStates[`스위치${switchNum}`];
+                                const currentUIState = switchStates[`스위치${switchNum}`];
+                                
+                                if (serverState === currentUIState) {
+                                    console.log(`✅ 스위치${switchNum} 상태 확인 완료: ${serverState} (${verificationAttempts}/${maxAttempts})`);
+                                    return; // 일치하면 종료
+                                }
+                                
+                                if (verificationAttempts >= maxAttempts) {
+                                    console.warn(`🔧 최종 상태 불일치! 스위치${switchNum} UI:${currentUIState} vs 서버:${serverState} - 하드웨어 상태 우선`);
+                                    switchStates[`스위치${switchNum}`] = serverState;
+                                    updateUI();
+                                } else {
+                                    console.warn(`⚠️ 상태 불일치 (${verificationAttempts}/${maxAttempts}) 스위치${switchNum} UI:${currentUIState} vs 서버:${serverState} - ${2}초 후 재시도`);
+                                    setTimeout(verifyState, 2000); // 2초 후 재시도
+                                }
+                            }
+                        } catch (error) {
+                            console.debug(`상태 재확인 중 오류 (${verificationAttempts}/${maxAttempts}):`, error);
+                            if (verificationAttempts < maxAttempts) {
+                                setTimeout(verifyState, 2000);
+                            }
+                        }
+                    };
+                    
+                    // 첫 번째 확인은 5초 후 (하드웨어 안정화 대기)
+                    setTimeout(verifyState, 5000);
+                    
                 } else {
                     console.warn(`⚠️ 스위치${switchNum} ${newAction} 실패`);
                     // 실패시에만 원래 상태로 복원
@@ -1062,11 +1223,16 @@
         }
 
         async function controlAllSwitches(action) {
+            // 사용자 조작 시간 기록
+            lastUserAction = Date.now();
+            
             // 모든 스위치 상태를 즉시 업데이트
             for (let i = 1; i <= 6; i++) {
                 switchStates[`스위치${i}`] = action;
             }
             updateUI();
+            
+            console.log(`🎮 전체 제어: 모든 스위치 ${action}`);
             
             // 서버에 순차적으로 전송
             for (let i = 1; i <= 6; i++) {
@@ -1120,12 +1286,40 @@
                 container.innerHTML = '';
                 
                 const days = ['월', '화', '수', '목', '금', '토', '일'];
-
+                
+                // 같은 스위치, 같은 시간, 같은 이름으로 그룹화
+                const groupedSchedules = {};
+                
                 schedules.forEach(schedule => {
+                    const key = `${schedule.switch_num}-${schedule.time_on}-${schedule.time_off}-${schedule.name}`;
+                    if (!groupedSchedules[key]) {
+                        groupedSchedules[key] = {
+                            ...schedule,
+                            days: []
+                        };
+                    }
+                    groupedSchedules[key].days.push(schedule.day_of_week);
+                });
+
+                Object.values(groupedSchedules).forEach(schedule => {
                     const scheduleCard = document.createElement('div');
                     scheduleCard.className = 'card mb-2';
                     scheduleCard.style.borderRadius = '12px';
                     scheduleCard.style.border = '1px solid #e5e5e7';
+                    
+                    // 요일 그룹 표시 로직
+                    let dayDisplay;
+                    const sortedDays = schedule.days.sort((a, b) => a - b);
+                    
+                    if (sortedDays.length === 7) {
+                        dayDisplay = '<span class="badge bg-success">매일</span>';
+                    } else if (sortedDays.length === 5 && sortedDays.every(d => d <= 4)) {
+                        dayDisplay = '<span class="badge bg-info">주중 (월~금)</span>';
+                    } else if (sortedDays.length === 2 && sortedDays[0] === 5 && sortedDays[1] === 6) {
+                        dayDisplay = '<span class="badge bg-warning">주말 (토~일)</span>';
+                    } else {
+                        dayDisplay = sortedDays.map(d => `<span class="badge bg-secondary me-1">${days[d]}</span>`).join('');
+                    }
                     
                     scheduleCard.innerHTML = `
                         <div class="card-body" style="padding: 15px;">
@@ -1135,17 +1329,24 @@
                                         <span class="badge bg-primary me-2">스위치 ${schedule.switch_num}</span>
                                         ${schedule.name || '이름 없음'}
                                     </h6>
+                                    <div class="mb-2">
+                                        ${dayDisplay}
+                                    </div>
                                     <small class="text-muted">
-                                        ${days[schedule.day_of_week]}요일 
-                                        ${schedule.time_on ? `${schedule.time_on} ON` : ''} 
-                                        ${schedule.time_off ? `${schedule.time_off} OFF` : ''}
+                                        ${schedule.time_on ? `🟢 ${schedule.time_on} 켜기` : ''} 
+                                        ${schedule.time_on && schedule.time_off ? ' • ' : ''}
+                                        ${schedule.time_off ? `🔴 ${schedule.time_off} 끄기` : ''}
                                         <br>
-                                        ${switchData[schedule.switch_num]?.name || `스위치 ${schedule.switch_num}`}
+                                        📟 ${switchData[schedule.switch_num]?.name || `스위치 ${schedule.switch_num}`}
                                     </small>
                                 </div>
-                                <button class="btn btn-outline-danger btn-sm" onclick="deleteSchedule(${schedule.id})" style="border-radius: 8px;">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <div style="display: flex; flex-direction: column; gap: 5px;">
+                                    ${schedule.days.map(day => `
+                                        <button class="btn btn-outline-danger btn-sm" onclick="deleteScheduleByDay(${schedule.switch_num}, ${day}, '${schedule.time_on}', '${schedule.time_off}')" style="border-radius: 6px; padding: 2px 6px; font-size: 10px;" title="개별 삭제: ${days[day]}요일">
+                                            ${days[day]}
+                                        </button>
+                                    `).join('')}
+                                </div>
                             </div>
                         </div>
                     `;
@@ -1166,32 +1367,91 @@
 
         async function saveSchedule() {
             try {
-                const scheduleData = {
-                    switch_num: parseInt(document.getElementById('scheduleSwitch').value),
-                    day_of_week: parseInt(document.getElementById('scheduleDayOfWeek').value),
-                    time_on: document.getElementById('scheduleTimeOn').value || null,
-                    time_off: document.getElementById('scheduleTimeOff').value || null,
-                    name: document.getElementById('scheduleName').value || '이름 없음',
-                    enabled: true
-                };
+                const switchNum = parseInt(document.getElementById('scheduleSwitch').value);
+                const dayValue = document.getElementById('scheduleDayOfWeek').value;
+                const timeOn = document.getElementById('scheduleTimeOn').value || null;
+                const timeOff = document.getElementById('scheduleTimeOff').value || null;
+                const name = document.getElementById('scheduleName').value || '이름 없음';
 
                 // 유효성 검사
-                if (!scheduleData.time_on && !scheduleData.time_off) {
+                if (!timeOn && !timeOff) {
                     alert('켜는 시간 또는 끄는 시간 중 하나는 입력해야 합니다.');
                     return;
                 }
 
-                const response = await fetch('/api/schedules', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(scheduleData)
-                });
-
-                const result = await response.json();
+                let scheduleRequests = [];
                 
-                if (result.success) {
+                // 그룹 스케줄 처리
+                if (dayValue === 'weekdays') {
+                    // 월~금 (0~4)
+                    for (let day = 0; day <= 4; day++) {
+                        scheduleRequests.push({
+                            switch_num: switchNum,
+                            day_of_week: day,
+                            time_on: timeOn,
+                            time_off: timeOff,
+                            name: `${name} (주중)`,
+                            enabled: true
+                        });
+                    }
+                } else if (dayValue === 'everyday') {
+                    // 월~일 (0~6)
+                    for (let day = 0; day <= 6; day++) {
+                        scheduleRequests.push({
+                            switch_num: switchNum,
+                            day_of_week: day,
+                            time_on: timeOn,
+                            time_off: timeOff,
+                            name: `${name} (매일)`,
+                            enabled: true
+                        });
+                    }
+                } else if (dayValue === 'weekend') {
+                    // 토~일 (5~6)
+                    for (let day = 5; day <= 6; day++) {
+                        scheduleRequests.push({
+                            switch_num: switchNum,
+                            day_of_week: day,
+                            time_on: timeOn,
+                            time_off: timeOff,
+                            name: `${name} (주말)`,
+                            enabled: true
+                        });
+                    }
+                } else {
+                    // 개별 요일
+                    scheduleRequests.push({
+                        switch_num: switchNum,
+                        day_of_week: parseInt(dayValue),
+                        time_on: timeOn,
+                        time_off: timeOff,
+                        name: name,
+                        enabled: true
+                    });
+                }
+
+                // 모든 스케줄 저장
+                let successCount = 0;
+                for (const scheduleData of scheduleRequests) {
+                    try {
+                        const response = await fetch('/api/schedules', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(scheduleData)
+                        });
+
+                        const result = await response.json();
+                        if (result.success) {
+                            successCount++;
+                        }
+                    } catch (error) {
+                        console.error('개별 스케줄 저장 실패:', error);
+                    }
+                }
+
+                if (successCount > 0) {
                     // 폼 초기화
                     document.getElementById('scheduleTimeOn').value = '';
                     document.getElementById('scheduleTimeOff').value = '';
@@ -1200,7 +1460,11 @@
                     // 스케줄 목록 새로고침
                     loadSchedules();
                     
-                    alert('✅ 스케줄이 추가되었습니다!');
+                    if (scheduleRequests.length === 1) {
+                        alert('✅ 스케줄이 추가되었습니다!');
+                    } else {
+                        alert(`✅ ${successCount}개의 스케줄이 추가되었습니다!`);
+                    }
                 } else {
                     alert('❌ 스케줄 추가에 실패했습니다.');
                 }
@@ -1208,6 +1472,42 @@
             } catch (error) {
                 console.error('스케줄 저장 실패:', error);
                 alert('❌ 스케줄 저장 중 오류가 발생했습니다.');
+            }
+        }
+
+        async function deleteScheduleByDay(switchNum, dayOfWeek, timeOn, timeOff) {
+            const days = ['월', '화', '수', '목', '금', '토', '일'];
+            if (!confirm(`${days[dayOfWeek]}요일 스케줄을 삭제하시겠습니까?`)) {
+                return;
+            }
+
+            try {
+                // 특정 조건에 맞는 스케줄을 찾아서 삭제
+                const response = await fetch(`/api/schedules/delete-by-condition`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        switch_num: switchNum,
+                        day_of_week: dayOfWeek,
+                        time_on: timeOn,
+                        time_off: timeOff
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    loadSchedules();
+                    alert(`✅ ${days[dayOfWeek]}요일 스케줄이 삭제되었습니다.`);
+                } else {
+                    alert('❌ 스케줄 삭제에 실패했습니다.');
+                }
+
+            } catch (error) {
+                console.error('스케줄 삭제 실패:', error);
+                alert('❌ 스케줄 삭제 중 오류가 발생했습니다.');
             }
         }
 
@@ -1235,6 +1535,36 @@
                 alert('❌ 스케줄 삭제 중 오류가 발생했습니다.');
             }
         }
+
+        // 설정 메뉴 관련 함수들
+        function toggleSettingsMenu(switchId) {
+            const menu = document.getElementById(`settings-menu-${switchId}`);
+            const isVisible = menu.style.display === 'block';
+            
+            // 모든 설정 메뉴 닫기
+            document.querySelectorAll('.settings-menu').forEach(m => {
+                m.style.display = 'none';
+            });
+            
+            // 현재 메뉴만 토글
+            if (!isVisible) {
+                menu.style.display = 'block';
+            }
+        }
+        
+        function hideSettingsMenu(switchId) {
+            const menu = document.getElementById(`settings-menu-${switchId}`);
+            menu.style.display = 'none';
+        }
+        
+        // 메뉴 외부 클릭 시 닫기
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.dropdown')) {
+                document.querySelectorAll('.settings-menu').forEach(menu => {
+                    menu.style.display = 'none';
+                });
+            }
+        });
 
         // 스위치 이름 편집 관련 함수들
         function editSwitchName(switchNum) {

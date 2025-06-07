@@ -46,6 +46,8 @@ class KC868Controller:
                                 logger.info(f"✅ 성공! 스위치{switch_num} {action}")
                                 # 제어 성공 시 캐시 즉시 업데이트
                                 self.last_known_status[f"스위치{switch_num}"] = action.upper()
+                                # 제어 기록 저장 (검증용)
+                                self._recent_controls[switch_num] = (time.time(), action.upper())
                                 self.log_action(switch_num, action)
                                 return True
                                 
@@ -67,6 +69,8 @@ class KC868Controller:
         self.base_url = f"http://{ip_address}"
         # 상태 캐시 추가 (안정성을 위해)
         self.last_known_status = {f"스위치{i}": "OFF" for i in range(1, 7)}
+        # 최근 제어 기록 (검증용)
+        self._recent_controls = {}
         # 스케줄 데이터 초기화
         self.init_schedule_db()
         # 스위치 이름 데이터 초기화
@@ -75,43 +79,276 @@ class KC868Controller:
         self.start_scheduler()
         
     async def get_switch_status(self):
-        """모든 스위치 상태 조회 (안정성 개선)"""
+        """모든 스위치 상태 조회 (완전한 안정성 확보)"""
         try:
             status = {}
             async with aiohttp.ClientSession() as session:
                 # 각 스위치별로 개별 상태 조회
-                for switch_num in range(1, 7):  # 스위치 1~6
+                for switch_num in range(1, 7):
                     switch_key = f"스위치{switch_num}"
-                    try:
-                        # 실제 ESPHome API 엔드포인트 사용
-                        url = f"{self.base_url}/switch/___{switch_num}"
-                        
-                        # 빠른 응답을 위한 짧은 타임아웃
-                        async with session.get(url, timeout=aiohttp.ClientTimeout(total=1)) as response:
-                            if response.status == 200:
-                                data = await response.json()
-                                # ESPHome API 응답 형식: {"id": "switch-___1", "state": "ON", "value": true}
-                                switch_state = data.get('state', self.last_known_status[switch_key])
-                                status[switch_key] = switch_state
-                                # 성공적으로 조회한 경우만 캐시 업데이트
-                                self.last_known_status[switch_key] = switch_state
-                                logger.debug(f"📊 스위치{switch_num} 상태: {switch_state}")
-                            else:
-                                # 실패 시 이전 상태 유지
-                                status[switch_key] = self.last_known_status[switch_key]
-                                logger.warning(f"⚠️ 스위치{switch_num} 상태 조회 실패 (HTTP {response.status}) - 이전 상태 유지")
+                    
+                    # 다중 시도로 안정성 확보 (최대 3번 시도)
+                    success = False
+                    for attempt in range(3):
+                        try:
+                            # 정확한 ESPHome API 엔드포인트들 (실제 사용되는 형식들)
+                            possible_urls = [
+                                f"{self.base_url}/switch/switch_{switch_num}",
+                                f"{self.base_url}/switch/switch{switch_num}",
+                                f"{self.base_url}/switch/relay{switch_num}",
+                                f"{self.base_url}/switch/relay_{switch_num}",
+                                f"{self.base_url}/sensor/switch{switch_num}_status",
+                                f"{self.base_url}/binary_sensor/switch{switch_num}",
+                                f"{self.base_url}/text_sensor/switch{switch_num}_state",
+                                f"{self.base_url}/api/switch{switch_num}/state",
+                                f"{self.base_url}/switch/___{switch_num}"  # 기존 형식도 유지
+                            ]
+                            
+                            for url in possible_urls:
+                                try:
+                                    # 충분한 타임아웃 설정 (네트워크 지연 고려)
+                                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=4)) as response:
+                                        if response.status == 200:
+                                            try:
+                                                # JSON 응답 처리
+                                                data = await response.json()
+                                                switch_state = None
+                                                
+                                                # 다양한 ESPHome 응답 형식 처리
+                                                if 'state' in data:
+                                                    switch_state = data['state'].upper()
+                                                elif 'value' in data:
+                                                    switch_state = "ON" if data['value'] else "OFF"
+                                                elif 'status' in data:
+                                                    switch_state = data['status'].upper()
+                                                elif isinstance(data, bool):
+                                                    switch_state = "ON" if data else "OFF"
+                                                elif isinstance(data, (int, float)):
+                                                    switch_state = "ON" if data > 0 else "OFF"
+                                                
+                                                if switch_state in ['ON', 'OFF']:
+                                                    status[switch_key] = switch_state
+                                                    self.last_known_status[switch_key] = switch_state
+                                                    logger.debug(f"✅ 스위치{switch_num} 상태: {switch_state} (from {url})")
+                                                    success = True
+                                                    break
+                                                    
+                                            except json.JSONDecodeError:
+                                                # JSON이 아닌 경우 텍스트로 처리
+                                                text = await response.text()
+                                                text = text.strip().upper()
+                                                
+                                                if text in ['ON', 'OFF']:
+                                                    switch_state = text
+                                                elif text in ['TRUE', '1', 'HIGH', 'ACTIVE']:
+                                                    switch_state = "ON"
+                                                elif text in ['FALSE', '0', 'LOW', 'INACTIVE']:
+                                                    switch_state = "OFF"
+                                                
+                                                if switch_state:
+                                                    status[switch_key] = switch_state
+                                                    self.last_known_status[switch_key] = switch_state
+                                                    logger.debug(f"✅ 스위치{switch_num} 상태: {switch_state} (text from {url})")
+                                                    success = True
+                                                    break
+                                                    
+                                except Exception as url_error:
+                                    logger.debug(f"🔄 URL 시도 실패 {url}: {url_error}")
+                                    continue
+                            
+                            if success:
+                                break
                                 
-                    except Exception as e:
-                        # 네트워크 오류 시 이전 상태 유지
+                            # 시도 간 짧은 대기 (네트워크 안정화)
+                            if attempt < 2:
+                                await asyncio.sleep(0.3)
+                                
+                        except Exception as attempt_error:
+                            logger.debug(f"🔄 시도 {attempt + 1} 실패 - 스위치{switch_num}: {attempt_error}")
+                            if attempt < 2:
+                                await asyncio.sleep(0.3)
+                            continue
+                    
+                    # 모든 시도 실패시 이전 상태 유지하되 경고
+                    if not success:
                         status[switch_key] = self.last_known_status[switch_key]
-                        logger.warning(f"⚠️ 스위치{switch_num} 상태 조회 오류: {e} - 이전 상태 유지")
+                        logger.warning(f"⚠️ 스위치{switch_num} 상태 조회 완전 실패 - 이전 상태 유지: {self.last_known_status[switch_key]}")
+                
+                # 추가 안정성 검증
+                await self.verify_critical_states(status)
                 
                 return status
                 
         except Exception as e:
             logger.error(f"💥 상태 조회 전체 오류: {e} - 이전 상태 반환")
-            # 전체 실패 시 이전 상태 반환
             return self.last_known_status.copy()
+    
+    async def verify_critical_states(self, status):
+        """중요한 상태 불일치 검증 및 보정"""
+        try:
+            # 제어 기록과 상태 비교 (최근 제어된 것들)
+            if hasattr(self, '_recent_controls'):
+                current_time = time.time()
+                for switch_num, control_info in list(self._recent_controls.items()):
+                    control_time, expected_state = control_info
+                    
+                    # 최근 10초 이내 제어된 스위치들 검증
+                    if current_time - control_time < 10:
+                        switch_key = f"스위치{switch_num}"
+                        actual_state = status.get(switch_key, self.last_known_status[switch_key])
+                        
+                        if actual_state != expected_state:
+                            logger.warning(f"🔧 상태 불일치 발견! 스위치{switch_num} 예상:{expected_state} vs 실제:{actual_state}")
+                            
+                            # 재검증 시도
+                            verified_state = await self.double_check_switch(switch_num)
+                            if verified_state:
+                                status[switch_key] = verified_state
+                                self.last_known_status[switch_key] = verified_state
+                                logger.info(f"🔄 스위치{switch_num} 상태 재검증 완료: {verified_state}")
+                    else:
+                        # 오래된 기록 제거
+                        del self._recent_controls[switch_num]
+                        
+        except Exception as e:
+            logger.debug(f"상태 검증 과정 오류: {e}")
+    
+    async def double_check_switch(self, switch_num):
+        """특정 스위치 이중 확인 (문제 발생시 사용)"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                # 가장 확실한 엔드포인트들만 사용
+                primary_urls = [
+                    f"{self.base_url}/switch/switch_{switch_num}",
+                    f"{self.base_url}/switch/relay{switch_num}",
+                    f"{self.base_url}/api/switch{switch_num}/state"
+                ]
+                
+                for url in primary_urls:
+                    try:
+                        async with session.get(url, timeout=aiohttp.ClientTimeout(total=2)) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                if 'state' in data:
+                                    return data['state'].upper()
+                                elif 'value' in data:
+                                    return "ON" if data['value'] else "OFF"
+                    except:
+                        continue
+                        
+            return None
+        except:
+            return None
+    
+    async def debug_switch_status(self, switch_num):
+        """디버그용 상세 스위치 상태 조회"""
+        debug_info = {
+            'switch_num': switch_num,
+            'cache_state': self.last_known_status.get(f"스위치{switch_num}", "UNKNOWN"),
+            'endpoints_tested': [],
+            'successful_endpoint': None,
+            'final_status': None,
+            'recent_control': None,
+            'timestamp': time.time()
+        }
+        
+        # 최근 제어 기록 확인
+        if hasattr(self, '_recent_controls') and switch_num in self._recent_controls:
+            control_time, expected_state = self._recent_controls[switch_num]
+            debug_info['recent_control'] = {
+                'time': control_time,
+                'expected_state': expected_state,
+                'age_seconds': time.time() - control_time
+            }
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                # 모든 가능한 엔드포인트 테스트
+                test_urls = [
+                    f"{self.base_url}/switch/switch_{switch_num}",
+                    f"{self.base_url}/switch/switch{switch_num}",
+                    f"{self.base_url}/switch/relay{switch_num}",
+                    f"{self.base_url}/switch/relay_{switch_num}",
+                    f"{self.base_url}/sensor/switch{switch_num}_status",
+                    f"{self.base_url}/binary_sensor/switch{switch_num}",
+                    f"{self.base_url}/text_sensor/switch{switch_num}_state",
+                    f"{self.base_url}/api/switch{switch_num}/state",
+                    f"{self.base_url}/switch/___{switch_num}"
+                ]
+                
+                for url in test_urls:
+                    endpoint_result = {
+                        'url': url,
+                        'status_code': None,
+                        'response_time_ms': None,
+                        'response_data': None,
+                        'parsed_state': None,
+                        'error': None
+                    }
+                    
+                    start_time = time.time()
+                    try:
+                        async with session.get(url, timeout=aiohttp.ClientTimeout(total=3)) as response:
+                            endpoint_result['status_code'] = response.status
+                            endpoint_result['response_time_ms'] = round((time.time() - start_time) * 1000, 2)
+                            
+                            if response.status == 200:
+                                try:
+                                    data = await response.json()
+                                    endpoint_result['response_data'] = data
+                                    
+                                    # 상태 파싱
+                                    if 'state' in data:
+                                        endpoint_result['parsed_state'] = data['state'].upper()
+                                    elif 'value' in data:
+                                        endpoint_result['parsed_state'] = "ON" if data['value'] else "OFF"
+                                    elif 'status' in data:
+                                        endpoint_result['parsed_state'] = data['status'].upper()
+                                    elif isinstance(data, bool):
+                                        endpoint_result['parsed_state'] = "ON" if data else "OFF"
+                                    elif isinstance(data, (int, float)):
+                                        endpoint_result['parsed_state'] = "ON" if data > 0 else "OFF"
+                                    
+                                    # 첫 번째 성공한 엔드포인트 기록
+                                    if endpoint_result['parsed_state'] and not debug_info['successful_endpoint']:
+                                        debug_info['successful_endpoint'] = url
+                                        debug_info['final_status'] = endpoint_result['parsed_state']
+                                        
+                                except json.JSONDecodeError:
+                                    # JSON이 아닌 경우 텍스트로 처리
+                                    text = await response.text()
+                                    endpoint_result['response_data'] = text
+                                    text = text.strip().upper()
+                                    
+                                    if text in ['ON', 'OFF']:
+                                        endpoint_result['parsed_state'] = text
+                                    elif text in ['TRUE', '1', 'HIGH', 'ACTIVE']:
+                                        endpoint_result['parsed_state'] = "ON"
+                                    elif text in ['FALSE', '0', 'LOW', 'INACTIVE']:
+                                        endpoint_result['parsed_state'] = "OFF"
+                                    
+                                    if endpoint_result['parsed_state'] and not debug_info['successful_endpoint']:
+                                        debug_info['successful_endpoint'] = url
+                                        debug_info['final_status'] = endpoint_result['parsed_state']
+                            else:
+                                endpoint_result['response_data'] = await response.text()
+                                
+                    except Exception as e:
+                        endpoint_result['error'] = str(e)
+                        endpoint_result['response_time_ms'] = round((time.time() - start_time) * 1000, 2)
+                    
+                    debug_info['endpoints_tested'].append(endpoint_result)
+                
+                # 최종 상태가 없으면 캐시된 상태 사용
+                if not debug_info['final_status']:
+                    debug_info['final_status'] = debug_info['cache_state']
+                
+                return debug_info
+                
+        except Exception as e:
+            debug_info['error'] = str(e)
+            debug_info['final_status'] = debug_info['cache_state']
+            return debug_info
     
     def log_action(self, switch_num, action, demo=False):
         """동작 로그 기록"""
@@ -273,6 +510,30 @@ class KC868Controller:
         except Exception as e:
             logger.error(f"💥 스케줄 삭제 오류: {e}")
             return False
+    
+    def delete_schedule_by_condition(self, switch_num, day_of_week, time_on=None, time_off=None):
+        """조건별 스케줄 삭제"""
+        try:
+            conn = sqlite3.connect('kc868_schedule.db')
+            c = conn.cursor()
+            
+            # 조건에 맞는 스케줄 삭제
+            c.execute("""
+                DELETE FROM schedules 
+                WHERE switch_num = ? AND day_of_week = ? AND time_on = ? AND time_off = ?
+            """, (switch_num, day_of_week, time_on, time_off))
+            
+            deleted_count = c.rowcount
+            
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"🗑️ 조건별 스케줄 삭제: 스위치{switch_num} {day_of_week}요일 ({deleted_count}개)")
+            return deleted_count > 0
+            
+        except Exception as e:
+            logger.error(f"💥 조건별 스케줄 삭제 오류: {e}")
+            return False
             
     def init_switch_names_db(self):
         """스위치 이름 데이터베이스 초기화"""
@@ -403,6 +664,11 @@ def dashboard():
     """메인 대시보드"""
     return render_template('dashboard.html')
 
+@app.route('/debug')
+def debug_monitor():
+    """실시간 디버그 모니터"""
+    return render_template('debug_monitor.html')
+
 @app.route('/api/status')
 def get_status():
     """모든 스위치 상태 조회 API"""
@@ -420,6 +686,56 @@ def get_status():
         return jsonify({
             "스위치1": "OFF", "스위치2": "OFF", "스위치3": "OFF",
             "스위치4": "OFF", "스위치5": "OFF", "스위치6": "OFF"
+        })
+
+@app.route('/api/debug/status/<int:switch_num>')
+def get_debug_status(switch_num):
+    """개별 스위치 상세 디버그 상태 조회 API"""
+    try:
+        logger.info(f"🔍 스위치{switch_num} 디버그 상태 조회")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # 다양한 엔드포인트에서 상태 조회 시도
+        debug_info = loop.run_until_complete(controller.debug_switch_status(switch_num))
+        loop.close()
+        
+        return jsonify(debug_info)
+    except Exception as e:
+        logger.error(f"❌ 디버그 상태 조회 오류: {e}")
+        return jsonify({
+            'switch_num': switch_num,
+            'status': 'ERROR',
+            'error': str(e),
+            'endpoints_tested': [],
+            'cache_state': controller.last_known_status.get(f"스위치{switch_num}", "UNKNOWN")
+        })
+
+@app.route('/api/debug/force-refresh')
+def force_refresh_all():
+    """모든 스위치 강제 새로고침 API"""
+    try:
+        logger.info("🔄 모든 스위치 강제 새로고침")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # 캐시 초기화
+        controller.last_known_status = {f"스위치{i}": "UNKNOWN" for i in range(1, 7)}
+        
+        # 새로운 상태 조회
+        status = loop.run_until_complete(controller.get_switch_status())
+        loop.close()
+        
+        return jsonify({
+            'success': True,
+            'status': status,
+            'message': '모든 스위치 상태가 강제로 새로고침되었습니다.'
+        })
+    except Exception as e:
+        logger.error(f"❌ 강제 새로고침 오류: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
         })
 
 @app.route('/api/control', methods=['POST'])
@@ -508,6 +824,22 @@ def delete_schedule(schedule_id):
         return jsonify({'success': success})
     except Exception as e:
         logger.error(f"💥 스케줄 삭제 오류: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/schedules/delete-by-condition', methods=['POST'])
+def delete_schedule_by_condition():
+    """조건별 스케줄 삭제 API"""
+    try:
+        data = request.get_json()
+        success = controller.delete_schedule_by_condition(
+            switch_num=data['switch_num'],
+            day_of_week=data['day_of_week'],
+            time_on=data.get('time_on'),
+            time_off=data.get('time_off')
+        )
+        return jsonify({'success': success})
+    except Exception as e:
+        logger.error(f"💥 조건별 스케줄 삭제 오류: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/switch-names')
