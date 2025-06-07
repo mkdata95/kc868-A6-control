@@ -1,0 +1,137 @@
+esphome:
+  name: kc868-a6
+  friendly_name: "KC868-A6 기본"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  level: DEBUG
+
+# WiFi 설정
+wifi:
+  ssid: "DIDBANK-2.4G"
+  password: "!mk614873011"
+  
+  # 고정 IP 설정
+  manual_ip:
+    static_ip: 192.168.0.100
+    gateway: 192.168.0.1
+    subnet: 255.255.255.0
+    dns1: 8.8.8.8
+
+  # WiFi 연결 실패시 액세스 포인트 모드
+  ap:
+    ssid: "KC868-A6-Fallback"
+    password: "kc868fallback"
+
+# 웹서버 활성화
+web_server:
+  port: 80
+
+# API 활성화 (Home Assistant 연동용)
+api:
+
+# OTA 업데이트 활성화
+ota:
+  platform: esphome
+  password: "kc868ota"
+
+# I2C 설정 - 개발주의사항.md의 정확한 핀 번호 사용!
+i2c:
+  sda: GPIO4
+  scl: GPIO15  # ⭐ 중요: GPIO15 (많은 예제가 GPIO5로 잘못 표기)
+  scan: true
+  id: bus_a
+
+# PCF8574 I2C 확장칩 설정
+pcf8574:
+  # 릴레이 출력용 (주소: 0x24)
+  - id: relay_outputs
+    address: 0x24
+    pcf8575: false
+
+# 릴레이 스위치 설정 (6개)
+switch:
+  - platform: gpio
+    name: "스위치1"
+    id: switch1
+    pin:
+      pcf8574: relay_outputs
+      number: 0
+      mode: OUTPUT
+      inverted: true  # ⭐ 중요: true로 설정!
+    on_turn_on:
+      - logger.log: "🔴🔴🔴 스위치1 켜짐! 실제 릴레이 동작! 🔴🔴🔴"
+    on_turn_off:
+      - logger.log: "🔵🔵🔵 스위치1 꺼짐! 🔵🔵🔵"
+
+  - platform: gpio
+    name: "스위치2"
+    id: switch2
+    pin:
+      pcf8574: relay_outputs
+      number: 1
+      mode: OUTPUT
+      inverted: true
+    on_turn_on:
+      - logger.log: "🔴🔴🔴 스위치2 켜짐! 실제 릴레이 동작! 🔴🔴🔴"
+    on_turn_off:
+      - logger.log: "🔵🔵🔵 스위치2 꺼짐! 🔵🔵🔵"
+
+  - platform: gpio
+    name: "스위치3"
+    id: switch3
+    pin:
+      pcf8574: relay_outputs
+      number: 2
+      mode: OUTPUT
+      inverted: true
+    on_turn_on:
+      - logger.log: "🔴🔴🔴 스위치3 켜짐! 실제 릴레이 동작! 🔴🔴🔴"
+    on_turn_off:
+      - logger.log: "🔵🔵🔵 스위치3 꺼짐! 🔵🔵🔵"
+
+  - platform: gpio
+    name: "스위치4"
+    id: switch4
+    pin:
+      pcf8574: relay_outputs
+      number: 3
+      mode: OUTPUT
+      inverted: true
+    on_turn_on:
+      - logger.log: "🔴🔴🔴 스위치4 켜짐! 실제 릴레이 동작! 🔴🔴🔴"
+    on_turn_off:
+      - logger.log: "🔵🔵🔵 스위치4 꺼짐! 🔵🔵🔵"
+
+  - platform: gpio
+    name: "스위치5"
+    id: switch5
+    pin:
+      pcf8574: relay_outputs
+      number: 4
+      mode: OUTPUT
+      inverted: true
+    on_turn_on:
+      - logger.log: "🔴🔴🔴 스위치5 켜짐! 실제 릴레이 동작! 🔴🔴🔴"
+    on_turn_off:
+      - logger.log: "🔵🔵🔵 스위치5 꺼짐! 🔵🔵🔵"
+
+  - platform: gpio
+    name: "스위치6"
+    id: switch6
+    pin:
+      pcf8574: relay_outputs
+      number: 5
+      mode: OUTPUT
+      inverted: true
+    on_turn_on:
+      - logger.log: "🔴🔴🔴 스위치6 켜짐! 실제 릴레이 동작! 🔴🔴🔴"
+    on_turn_off:
+      - logger.log: "🔵🔵🔵 스위치6 꺼짐! 🔵🔵🔵"
+
+# 자동 토글 기능 제거됨 - 수동 제어만 가능 

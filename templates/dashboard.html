@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KC868-A6 스마트 컨트롤러</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        .switch-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            height: 200px;
+        }
+        .switch-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        .switch-on {
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            color: white;
+        }
+        .switch-off {
+            background: linear-gradient(145deg, #f44336, #da190b);
+            color: white;
+        }
+        .status-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 0.8rem;
+        }
+        .loading {
+            text-align: center;
+            color: white;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- 헤더 -->
+        <div class="glass-card p-4 mb-4">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h1 class="text-white mb-0">
+                        <i class="fas fa-microchip me-2"></i>
+                        KC868-A6 스마트 컨트롤러
+                    </h1>
+                    <p class="text-white-50 mb-0">6채널 릴레이 제어 시스템</p>
+                </div>
+                <div class="col-auto">
+                    <div id="connection-status" class="badge bg-warning">
+                        <i class="fas fa-spinner fa-spin me-1"></i>
+                        연결 상태 확인 중...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 스위치 제어 패널 -->
+        <div class="row" id="switches-container">
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p>스위치 상태를 불러오는 중...</p>
+            </div>
+        </div>
+
+        <!-- 빠른 제어 -->
+        <div class="glass-card p-4 mt-4">
+            <h5 class="text-white mb-3">
+                <i class="fas fa-bolt me-2"></i>
+                빠른 제어
+            </h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <button class="btn btn-success w-100 mb-2" onclick="controlAllSwitches('ON')">
+                        <i class="fas fa-power-off me-2"></i>
+                        전체 켜기
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <button class="btn btn-danger w-100 mb-2" onclick="controlAllSwitches('OFF')">
+                        <i class="fas fa-power-off me-2"></i>
+                        전체 끄기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 전역 변수
+        let switchStates = {};
+        
+        // 페이지 로드시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSwitchStatus();
+            setInterval(loadSwitchStatus, 5000); // 5초마다 상태 업데이트
+        });
+        
+        // 스위치 상태 로드
+        async function loadSwitchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                if (response.ok) {
+                    switchStates = await response.json();
+                    updateUI();
+                    updateConnectionStatus(true);
+                } else {
+                    throw new Error('API 응답 오류');
+                }
+            } catch (error) {
+                console.error('상태 로드 실패:', error);
+                updateConnectionStatus(false);
+                // 실패시 기본 상태로 설정
+                switchStates = {
+                    "스위치1": "OFF", "스위치2": "OFF", "스위치3": "OFF",
+                    "스위치4": "OFF", "스위치5": "OFF", "스위치6": "OFF"
+                };
+                updateUI();
+            }
+        }
+        
+        // UI 업데이트
+        function updateUI() {
+            const container = document.getElementById('switches-container');
+            container.innerHTML = '';
+            
+            const switchNames = [
+                '메인조명', '복도조명', '에어컨', 
+                '작업장비', '보안등', '비상전원'
+            ];
+            
+            for (let i = 1; i <= 6; i++) {
+                const switchKey = `스위치${i}`;
+                const state = switchStates[switchKey] || 'OFF';
+                const isOn = state === 'ON';
+                
+                const col = document.createElement('div');
+                col.className = 'col-md-4 col-sm-6 mb-3';
+                
+                col.innerHTML = `
+                    <div class="switch-card glass-card p-3 d-flex flex-column justify-content-center align-items-center ${isOn ? 'switch-on' : 'switch-off'}" 
+                         onclick="toggleSwitch(${i})">
+                        <span class="status-badge badge ${isOn ? 'bg-success' : 'bg-secondary'}">
+                            ${isOn ? 'ON' : 'OFF'}
+                        </span>
+                        <i class="fas ${isOn ? 'fa-lightbulb' : 'fa-power-off'} fa-3x mb-3"></i>
+                        <h5 class="mb-1">스위치 ${i}</h5>
+                        <small>${switchNames[i-1]}</small>
+                        <div class="mt-2">
+                            <small class="opacity-75">클릭하여 ${isOn ? '끄기' : '켜기'}</small>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(col);
+            }
+        }
+        
+        // 연결 상태 업데이트
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connection-status');
+            if (connected) {
+                statusEl.innerHTML = '<i class="fas fa-check me-1"></i> 연결됨';
+                statusEl.className = 'badge bg-success';
+            } else {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> 연결 실패';
+                statusEl.className = 'badge bg-danger';
+            }
+        }
+        
+        // 스위치 토글
+        async function toggleSwitch(switchNum) {
+            const currentState = switchStates[`스위치${switchNum}`] || 'OFF';
+            const newAction = currentState === 'ON' ? 'OFF' : 'ON';
+            
+            try {
+                // UI 즉시 업데이트 (반응성 향상)
+                switchStates[`스위치${switchNum}`] = newAction;
+                updateUI();
+                
+                const response = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        switch: switchNum,
+                        action: newAction
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    console.log(`✅ 스위치${switchNum} ${newAction} 성공`);
+                } else {
+                    console.warn(`⚠️ 스위치${switchNum} ${newAction} 실패: ${result.message}`);
+                    // 실패시 원래 상태로 복원
+                    switchStates[`스위치${switchNum}`] = currentState;
+                    updateUI();
+                }
+                
+            } catch (error) {
+                console.error('제어 요청 실패:', error);
+                // 실패시 원래 상태로 복원
+                switchStates[`스위치${switchNum}`] = currentState;
+                updateUI();
+            }
+        }
+        
+        // 전체 스위치 제어
+        async function controlAllSwitches(action) {
+            for (let i = 1; i <= 6; i++) {
+                try {
+                    switchStates[`스위치${i}`] = action;
+                    updateUI();
+                    
+                    await fetch('/api/control', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            switch: i,
+                            action: action
+                        })
+                    });
+                    
+                    // 각 스위치 사이에 짧은 지연
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                } catch (error) {
+                    console.error(`스위치${i} ${action} 실패:`, error);
+                }
+            }
+        }
+    </script>
+</body>
+</html> 
