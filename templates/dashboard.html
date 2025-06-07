@@ -3,99 +3,862 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KC868-A6 스마트 컨트롤러</title>
+    <title>KC868-A6 컨트롤러</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        * {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        .glass-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
+        
+        body {
+            background: #f5f5f7;
+            color: #1d1d1f;
+            line-height: 1.6;
+        }
+        
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .header {
+            background: #ffffff;
             border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            border: 1px solid #e5e5e7;
         }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin: 0;
+            letter-spacing: -0.03em;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            color: #86868b;
+            margin: 8px 0 0 0;
+            font-weight: 400;
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .status-connected {
+            background: #e8f5e8;
+            color: #30a14e;
+        }
+        
+        .status-disconnected {
+            background: #ffeaea;
+            color: #d73a49;
+        }
+        
+        .status-loading {
+            background: #fff4e6;
+            color: #fb8500;
+        }
+        
+        .switches-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
         .switch-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            border: 1px solid #e5e5e7;
             transition: all 0.3s ease;
             cursor: pointer;
-            height: 200px;
+            position: relative;
+            overflow: hidden;
         }
+        
         .switch-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
         }
-        .switch-on {
-            background: linear-gradient(145deg, #4CAF50, #45a049);
+        
+        .switch-card.active {
+            background: #007aff;
+            color: white;
+            border-color: #007aff;
+        }
+        
+        .switch-card.active .switch-icon {
             color: white;
         }
-        .switch-off {
-            background: linear-gradient(145deg, #f44336, #da190b);
+        
+        .switch-card.active .switch-label {
+            color: rgba(255,255,255,0.9);
+        }
+        
+        .switch-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        
+        .switch-number {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin: 0;
+        }
+        
+        .switch-card.active .switch-number {
             color: white;
         }
-        .status-badge {
+        
+        .switch-toggle {
+            width: 60px;
+            height: 34px;
+            background: #e5e5e7;
+            border-radius: 17px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .switch-toggle.active {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .switch-toggle::after {
+            content: '';
             position: absolute;
-            top: 10px;
-            right: 10px;
-            font-size: 0.8rem;
+            width: 30px;
+            height: 30px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .loading {
+        
+        .switch-toggle.active::after {
+            transform: translateX(26px);
+        }
+        
+        .switch-body {
             text-align: center;
+        }
+        
+        .switch-icon {
+            font-size: 3rem;
+            color: #86868b;
+            margin-bottom: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .switch-label {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #86868b;
+            margin-bottom: 8px;
+        }
+        
+        .switch-status {
+            font-size: 0.9rem;
+            color: #86868b;
+            opacity: 0.8;
+        }
+        
+        .switch-card.active .switch-status {
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .control-panel {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            border: 1px solid #e5e5e7;
+        }
+        
+        .control-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 20px;
+            letter-spacing: -0.02em;
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .btn-apple {
+            background: #007aff;
             color: white;
-            margin: 20px 0;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            flex: 1;
+        }
+        
+        .btn-apple:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,122,255,0.3);
+        }
+        
+        .btn-apple.btn-secondary {
+            background: #8e8e93;
+        }
+        
+        .btn-apple.btn-secondary:hover {
+            background: #6d6d70;
+        }
+        
+        .loading-spinner {
+            text-align: center;
+            padding: 60px 20px;
+            color: #86868b;
+        }
+        
+        .loading-spinner i {
+            font-size: 2rem;
+            margin-bottom: 16px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .icon-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px 10px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .icon-option:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .icon-option.selected {
+            background: #007aff;
+            color: white;
+            border-color: #007aff;
+            transform: scale(1.05);
+        }
+        
+        .icon-option i {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+        
+        .icon-option small {
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 20px 15px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .switches-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .control-buttons {
+                flex-direction: column;
+            }
+            
+            .icon-grid {
+                grid-template-columns: repeat(4, 1fr) !important;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container mt-4">
+    <div class="main-container">
         <!-- 헤더 -->
-        <div class="glass-card p-4 mb-4">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h1 class="text-white mb-0">
-                        <i class="fas fa-microchip me-2"></i>
-                        KC868-A6 스마트 컨트롤러
-                    </h1>
-                    <p class="text-white-50 mb-0">6채널 릴레이 제어 시스템</p>
+        <div class="header fade-in">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h1>EasySign KC868-A6 Control</h1>
+                    <p>스마트 릴레이 컨트롤러</p>
                 </div>
-                <div class="col-auto">
-                    <div id="connection-status" class="badge bg-warning">
-                        <i class="fas fa-spinner fa-spin me-1"></i>
-                        연결 상태 확인 중...
+                <div id="connection-status" class="status-indicator status-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    연결 확인 중
+                </div>
+            </div>
+        </div>
+
+        <!-- 스위치 그리드 -->
+        <div id="switches-container" class="switches-grid">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>스위치 상태를 불러오는 중...</p>
+            </div>
+        </div>
+
+        <!-- 제어 패널 -->
+        <div class="control-panel fade-in">
+            <h3 class="control-title">전체 제어</h3>
+            <div class="control-buttons">
+                <button class="btn-apple" onclick="controlAllSwitches('ON')">
+                    <i class="fas fa-power-off me-2"></i>
+                    모두 켜기
+                </button>
+                <button class="btn-apple btn-secondary" onclick="controlAllSwitches('OFF')">
+                    <i class="fas fa-power-off me-2"></i>
+                    모두 끄기
+                </button>
+                <button class="btn-apple" onclick="showScheduleModal()" style="background: #ff9500;">
+                    <i class="fas fa-clock me-2"></i>
+                    스케줄 설정
+                </button>
+                <button class="btn-apple" onclick="resetAllIcons()" style="background: #ff3b30;" title="모든 아이콘을 기본값으로 리셋">
+                    <i class="fas fa-undo me-2"></i>
+                    아이콘 리셋
+                </button>
+            </div>
+        </div>
+
+        <!-- 스케줄 모달 -->
+        <div class="modal fade" id="scheduleModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content" style="border-radius: 20px; border: none;">
+                    <div class="modal-header" style="border: none; padding: 30px 30px 0;">
+                        <h4 class="modal-title">📅 스케줄 설정</h4>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" style="padding: 20px 30px 30px;">
+                        
+                        <!-- 새 스케줄 추가 -->
+                        <div class="schedule-form" style="background: #f8f9fa; border-radius: 16px; padding: 20px; margin-bottom: 20px;">
+                            <h5>새 스케줄 추가</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">스위치 선택</label>
+                                    <select class="form-select" id="scheduleSwitch" style="border-radius: 12px;">
+                                        <option value="1">스위치 1 - 메인 조명</option>
+                                        <option value="2">스위치 2 - 복도 조명</option>
+                                        <option value="3">스위치 3 - 에어컨</option>
+                                        <option value="4">스위치 4 - 작업 장비</option>
+                                        <option value="5">스위치 5 - 보안등</option>
+                                        <option value="6">스위치 6 - 비상 전원</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">요일</label>
+                                    <select class="form-select" id="scheduleDayOfWeek" style="border-radius: 12px;">
+                                        <option value="0">월요일</option>
+                                        <option value="1">화요일</option>
+                                        <option value="2">수요일</option>
+                                        <option value="3">목요일</option>
+                                        <option value="4">금요일</option>
+                                        <option value="5">토요일</option>
+                                        <option value="6">일요일</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">켜는 시간</label>
+                                    <input type="time" class="form-control" id="scheduleTimeOn" style="border-radius: 12px;">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">끄는 시간</label>
+                                    <input type="time" class="form-control" id="scheduleTimeOff" style="border-radius: 12px;">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">스케줄 이름</label>
+                                    <input type="text" class="form-control" id="scheduleName" placeholder="예: 아침 조명" style="border-radius: 12px;">
+                                </div>
+                            </div>
+                            <button class="btn-apple" onclick="saveSchedule()">
+                                <i class="fas fa-plus me-2"></i>
+                                스케줄 추가
+                            </button>
+                        </div>
+
+                        <!-- 기존 스케줄 목록 -->
+                        <div class="schedule-list">
+                            <h5>등록된 스케줄</h5>
+                            <div id="scheduleListContainer">
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    스케줄을 불러오는 중...
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 스위치 제어 패널 -->
-        <div class="row" id="switches-container">
-            <div class="loading">
-                <i class="fas fa-spinner fa-spin fa-2x"></i>
-                <p>스위치 상태를 불러오는 중...</p>
-            </div>
-        </div>
-
-        <!-- 빠른 제어 -->
-        <div class="glass-card p-4 mt-4">
-            <h5 class="text-white mb-3">
-                <i class="fas fa-bolt me-2"></i>
-                빠른 제어
-            </h5>
-            <div class="row">
-                <div class="col-md-6">
-                    <button class="btn btn-success w-100 mb-2" onclick="controlAllSwitches('ON')">
-                        <i class="fas fa-power-off me-2"></i>
-                        전체 켜기
-                    </button>
-                </div>
-                <div class="col-md-6">
-                    <button class="btn btn-danger w-100 mb-2" onclick="controlAllSwitches('OFF')">
-                        <i class="fas fa-power-off me-2"></i>
-                        전체 끄기
-                    </button>
+        <!-- 아이콘 선택 모달 -->
+        <div class="modal fade" id="iconModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content" style="border-radius: 20px; border: none;">
+                    <div class="modal-header" style="border: none; padding: 30px 30px 0;">
+                        <h4 class="modal-title">🎨 아이콘 선택</h4>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" style="padding: 20px 30px 30px;">
+                        <p class="text-muted mb-3">스위치에 사용할 아이콘을 선택하세요:</p>
+                        
+                        <div class="icon-grid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; max-height: 400px; overflow-y: auto;">
+                            
+                            <!-- 🏠 주요 가전제품 -->
+                            <div class="icon-option" data-icon="fa-tv" title="TV/모니터">
+                                <i class="fas fa-tv"></i>
+                                <small>TV</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-snowflake" title="에어컨">
+                                <i class="fas fa-snowflake"></i>
+                                <small>에어컨</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-fan" title="선풍기">
+                                <i class="fas fa-fan"></i>
+                                <small>선풍기</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-glass-martini" title="블렌더">
+                                <i class="fas fa-glass-martini"></i>
+                                <small>블렌더</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-coffee" title="커피머신">
+                                <i class="fas fa-coffee"></i>
+                                <small>커피</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-bread-slice" title="토스터">
+                                <i class="fas fa-bread-slice"></i>
+                                <small>토스터</small>
+                            </div>
+                            
+                            <!-- 🧽 청소/세탁 -->
+                            <div class="icon-option" data-icon="fa-broom" title="청소기">
+                                <i class="fas fa-broom"></i>
+                                <small>청소기</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-tshirt" title="세탁기">
+                                <i class="fas fa-tshirt"></i>
+                                <small>세탁기</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-wind" title="건조기">
+                                <i class="fas fa-wind"></i>
+                                <small>건조기</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-fire" title="다리미">
+                                <i class="fas fa-fire"></i>
+                                <small>다리미</small>
+                            </div>
+                            
+                            <!-- 💡 실내 기본 조명 -->
+                            <div class="icon-option" data-icon="fa-lightbulb" title="일반 전구">
+                                <i class="fas fa-lightbulb"></i>
+                                <small>전구</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-lightbulb" title="테이블램프">
+                                <i class="fas fa-lightbulb"></i>
+                                <small>테이블램프</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-angle-up" title="데스크램프">
+                                <i class="fas fa-angle-up"></i>
+                                <small>데스크램프</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-arrow-up" title="플로어램프">
+                                <i class="fas fa-arrow-up"></i>
+                                <small>플로어램프</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-fan" title="실링팬라이트">
+                                <i class="fas fa-fan"></i>
+                                <small>실링팬</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-circle" title="원형조명">
+                                <i class="fas fa-circle"></i>
+                                <small>원형등</small>
+                            </div>
+                            
+                            <!-- 💡 장식/디자인 조명 -->
+                            <div class="icon-option" data-icon="fa-gem" title="샹들리에">
+                                <i class="fas fa-gem"></i>
+                                <small>샹들리에</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-star" title="펜던트">
+                                <i class="fas fa-star"></i>
+                                <small>펜던트</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-crown" title="크리스탈">
+                                <i class="fas fa-crown"></i>
+                                <small>크리스탈</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-certificate" title="디자인조명">
+                                <i class="fas fa-certificate"></i>
+                                <small>디자인등</small>
+                            </div>
+                            
+                            <!-- 💡 LED/스마트 조명 -->
+                            <div class="icon-option" data-icon="fa-circle" title="LED조명">
+                                <i class="fas fa-circle"></i>
+                                <small>LED</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-palette" title="RGB조명">
+                                <i class="fas fa-palette"></i>
+                                <small>RGB</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-grip-lines" title="LED스트립">
+                                <i class="fas fa-grip-lines"></i>
+                                <small>LED스트립</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-adjust" title="조광조명">
+                                <i class="fas fa-adjust"></i>
+                                <small>조광등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-magic" title="스마트조명">
+                                <i class="fas fa-magic"></i>
+                                <small>스마트등</small>
+                            </div>
+                            
+                            <!-- 💡 작업/기능 조명 -->
+                            <div class="icon-option" data-icon="fa-book-open" title="독서등">
+                                <i class="fas fa-book-open"></i>
+                                <small>독서등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-tools" title="작업등">
+                                <i class="fas fa-tools"></i>
+                                <small>작업등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-search" title="확대등">
+                                <i class="fas fa-search"></i>
+                                <small>확대등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-crosshairs" title="스포트라이트">
+                                <i class="fas fa-crosshairs"></i>
+                                <small>스포트</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-bullseye" title="다운라이트">
+                                <i class="fas fa-bullseye"></i>
+                                <small>다운라이트</small>
+                            </div>
+                            
+                            <!-- 💡 외부/보안 조명 -->
+                            <div class="icon-option" data-icon="fa-street-view" title="가로등">
+                                <i class="fas fa-street-view"></i>
+                                <small>가로등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-home" title="현관등">
+                                <i class="fas fa-home"></i>
+                                <small>현관등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-tree" title="정원등">
+                                <i class="fas fa-tree"></i>
+                                <small>정원등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-shield-alt" title="보안등">
+                                <i class="fas fa-shield-alt"></i>
+                                <small>보안등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-camera" title="투광등">
+                                <i class="fas fa-camera"></i>
+                                <small>투광등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-walking" title="센서등">
+                                <i class="fas fa-walking"></i>
+                                <small>센서등</small>
+                            </div>
+                            
+                            <!-- 💡 분위기/특수 조명 -->
+                            <div class="icon-option" data-icon="fa-moon" title="무드등">
+                                <i class="fas fa-moon"></i>
+                                <small>무드등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-fire" title="캔들라이트">
+                                <i class="fas fa-fire"></i>
+                                <small>캔들</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-heart" title="로맨틱조명">
+                                <i class="fas fa-heart"></i>
+                                <small>로맨틱</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-music" title="파티조명">
+                                <i class="fas fa-music"></i>
+                                <small>파티등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-palette" title="무지개조명">
+                                <i class="fas fa-palette"></i>
+                                <small>무지개</small>
+                            </div>
+                            
+                            <!-- 💡 천장/벽면 조명 -->
+                            <div class="icon-option" data-icon="fa-square" title="사각조명">
+                                <i class="fas fa-square"></i>
+                                <small>사각등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-circle-notch" title="매입등">
+                                <i class="fas fa-circle-notch"></i>
+                                <small>매입등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-window-maximize" title="패널조명">
+                                <i class="fas fa-window-maximize"></i>
+                                <small>패널등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-minus" title="라인조명">
+                                <i class="fas fa-minus"></i>
+                                <small>라인등</small>
+                            </div>
+                            
+                            <!-- 💡 특수 목적 조명 -->
+                            <div class="icon-option" data-icon="fa-sun" title="태양광조명">
+                                <i class="fas fa-sun"></i>
+                                <small>태양광</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-exclamation-triangle" title="비상등">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <small>비상등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-fire" title="난로등">
+                                <i class="fas fa-fire"></i>
+                                <small>난로등</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-snowflake" title="쿨링등">
+                                <i class="fas fa-snowflake"></i>
+                                <small>쿨링등</small>
+                            </div>
+                            
+                            <!-- 🎵 오디오/비디오 -->
+                            <div class="icon-option" data-icon="fa-music" title="오디오">
+                                <i class="fas fa-music"></i>
+                                <small>오디오</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-volume-up" title="스피커">
+                                <i class="fas fa-volume-up"></i>
+                                <small>스피커</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-headphones" title="헤드폰">
+                                <i class="fas fa-headphones"></i>
+                                <small>헤드폰</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-radio" title="라디오">
+                                <i class="fas fa-radio"></i>
+                                <small>라디오</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-microphone" title="마이크">
+                                <i class="fas fa-microphone"></i>
+                                <small>마이크</small>
+                            </div>
+                            
+                            <!-- 💻 사무/IT 기기 -->
+                            <div class="icon-option" data-icon="fa-desktop" title="데스크탑">
+                                <i class="fas fa-desktop"></i>
+                                <small>PC</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-laptop" title="노트북">
+                                <i class="fas fa-laptop"></i>
+                                <small>노트북</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-print" title="프린터">
+                                <i class="fas fa-print"></i>
+                                <small>프린터</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-server" title="서버">
+                                <i class="fas fa-server"></i>
+                                <small>서버</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-wifi" title="WiFi">
+                                <i class="fas fa-wifi"></i>
+                                <small>WiFi</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-project-diagram" title="라우터">
+                                <i class="fas fa-project-diagram"></i>
+                                <small>라우터</small>
+                            </div>
+                            
+                            <!-- 🌡️ 냉난방/환기 -->
+                            <div class="icon-option" data-icon="fa-fire" title="히터">
+                                <i class="fas fa-fire"></i>
+                                <small>히터</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-thermometer-half" title="온도조절">
+                                <i class="fas fa-thermometer-half"></i>
+                                <small>온도</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-fire-alt" title="온수기">
+                                <i class="fas fa-fire-alt"></i>
+                                <small>온수기</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-snowflake" title="냉방">
+                                <i class="fas fa-snowflake"></i>
+                                <small>냉방</small>
+                            </div>
+                            
+                            <!-- 💧 물/펌프 시스템 -->
+                            <div class="icon-option" data-icon="fa-water" title="급수펌프">
+                                <i class="fas fa-water"></i>
+                                <small>급수</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-shower" title="샤워">
+                                <i class="fas fa-shower"></i>
+                                <small>샤워</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-tint" title="수도꼭지">
+                                <i class="fas fa-tint"></i>
+                                <small>수도</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-swimmer" title="수영장">
+                                <i class="fas fa-swimmer"></i>
+                                <small>수영장</small>
+                            </div>
+                            
+                            <!-- 🛡️ 보안/안전 -->
+                            <div class="icon-option" data-icon="fa-shield-alt" title="보안시스템">
+                                <i class="fas fa-shield-alt"></i>
+                                <small>보안</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-camera" title="CCTV">
+                                <i class="fas fa-camera"></i>
+                                <small>CCTV</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-lock" title="전자도어락">
+                                <i class="fas fa-lock"></i>
+                                <small>도어락</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-door-open" title="자동문">
+                                <i class="fas fa-door-open"></i>
+                                <small>자동문</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-bell" title="알람">
+                                <i class="fas fa-bell"></i>
+                                <small>알람</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-exclamation-triangle" title="비상등">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <small>비상등</small>
+                            </div>
+                            
+                            <!-- ⚡ 전력/에너지 -->
+                            <div class="icon-option" data-icon="fa-battery-full" title="배터리">
+                                <i class="fas fa-battery-full"></i>
+                                <small>배터리</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-plug" title="전원">
+                                <i class="fas fa-plug"></i>
+                                <small>전원</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-bolt" title="전기">
+                                <i class="fas fa-bolt"></i>
+                                <small>전기</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-sun" title="태양광패널">
+                                <i class="fas fa-sun"></i>
+                                <small>태양광</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-battery-full" title="UPS">
+                                <i class="fas fa-battery-full"></i>
+                                <small>UPS</small>
+                            </div>
+                            
+                            <!-- 🏭 산업/공장 -->
+                            <div class="icon-option" data-icon="fa-cogs" title="기계장비">
+                                <i class="fas fa-cogs"></i>
+                                <small>기계</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-industry" title="공장설비">
+                                <i class="fas fa-industry"></i>
+                                <small>공장</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-tools" title="공구">
+                                <i class="fas fa-tools"></i>
+                                <small>공구</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-wrench" title="장비">
+                                <i class="fas fa-wrench"></i>
+                                <small>장비</small>
+                            </div>
+                            
+                            <!-- 🌿 원예/농업 -->
+                            <div class="icon-option" data-icon="fa-leaf" title="식물재배">
+                                <i class="fas fa-leaf"></i>
+                                <small>식물</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-seedling" title="온실">
+                                <i class="fas fa-seedling"></i>
+                                <small>온실</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-tractor" title="농기계">
+                                <i class="fas fa-tractor"></i>
+                                <small>농기계</small>
+                            </div>
+                            
+                            <!-- 🏠 기타 -->
+                            <div class="icon-option" data-icon="fa-home" title="홈시스템">
+                                <i class="fas fa-home"></i>
+                                <small>홈</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-power-off" title="전원버튼">
+                                <i class="fas fa-power-off"></i>
+                                <small>전원</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-magic" title="스마트홈">
+                                <i class="fas fa-magic"></i>
+                                <small>스마트</small>
+                            </div>
+                            <div class="icon-option" data-icon="fa-robot" title="로봇">
+                                <i class="fas fa-robot"></i>
+                                <small>로봇</small>
+                            </div>
+                            
+                        </div>
+                        
+                        <div class="mt-4 text-center">
+                            <button class="btn-apple btn-secondary" data-bs-dismiss="modal">취소</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -103,16 +866,29 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 전역 변수
         let switchStates = {};
-        
-        // 페이지 로드시 초기화
+        let switchData = {}; // 이름과 아이콘을 모두 포함
+        let isInitialized = false;
+        let currentEditingSwitch = null;
+
         document.addEventListener('DOMContentLoaded', function() {
-            loadSwitchStatus();
-            setInterval(loadSwitchStatus, 5000); // 5초마다 상태 업데이트
+            loadSwitchData().then(() => {
+                initializeSwitches();
+                loadSwitchStatus();
+            });
+            setInterval(loadSwitchStatus, 5000); // 5초로 조정하여 깜빡임 최소화
+            
+            // 아이콘 선택 이벤트 리스너
+            document.querySelectorAll('.icon-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    const selectedIcon = this.dataset.icon;
+                    if (currentEditingSwitch) {
+                        saveSwitchIcon(currentEditingSwitch, selectedIcon);
+                    }
+                });
+            });
         });
-        
-        // 스위치 상태 로드
+
         async function loadSwitchStatus() {
             try {
                 const response = await fetch('/api/status');
@@ -126,7 +902,6 @@
             } catch (error) {
                 console.error('상태 로드 실패:', error);
                 updateConnectionStatus(false);
-                // 실패시 기본 상태로 설정
                 switchStates = {
                     "스위치1": "OFF", "스위치2": "OFF", "스위치3": "OFF",
                     "스위치4": "OFF", "스위치5": "OFF", "스위치6": "OFF"
@@ -134,66 +909,130 @@
                 updateUI();
             }
         }
-        
-        // UI 업데이트
-        function updateUI() {
+
+        // 스위치 데이터 로드 (이름 + 아이콘)
+        async function loadSwitchData() {
+            try {
+                const response = await fetch('/api/switch-names');
+                if (response.ok) {
+                    switchData = await response.json();
+                } else {
+                    // 기본값 설정
+                    switchData = {
+                        "1": {"name": "메인 조명", "icon": "fa-lightbulb"}, 
+                        "2": {"name": "복도 조명", "icon": "fa-lightbulb"}, 
+                        "3": {"name": "에어컨", "icon": "fa-snowflake"},
+                        "4": {"name": "작업 장비", "icon": "fa-cogs"}, 
+                        "5": {"name": "보안등", "icon": "fa-shield-alt"}, 
+                        "6": {"name": "비상 전원", "icon": "fa-battery-full"}
+                    };
+                }
+            } catch (error) {
+                console.error('스위치 데이터 로드 실패:', error);
+                switchData = {
+                    "1": {"name": "메인 조명", "icon": "fa-lightbulb"}, 
+                    "2": {"name": "복도 조명", "icon": "fa-lightbulb"}, 
+                    "3": {"name": "에어컨", "icon": "fa-snowflake"},
+                    "4": {"name": "작업 장비", "icon": "fa-cogs"}, 
+                    "5": {"name": "보안등", "icon": "fa-shield-alt"}, 
+                    "6": {"name": "비상 전원", "icon": "fa-battery-full"}
+                };
+            }
+        }
+
+        // 초기 스위치 카드 생성 (한 번만 실행)
+        function initializeSwitches() {
             const container = document.getElementById('switches-container');
             container.innerHTML = '';
             
-            const switchNames = [
-                '메인조명', '복도조명', '에어컨', 
-                '작업장비', '보안등', '비상전원'
-            ];
+            for (let i = 1; i <= 6; i++) {
+                const switchCard = document.createElement('div');
+                switchCard.className = `switch-card fade-in`;
+                switchCard.id = `switch-${i}`;
+                switchCard.onclick = (e) => {
+                    // 라벨 편집 중이 아닐 때만 토글
+                    if (!e.target.classList.contains('switch-label-input')) {
+                        toggleSwitch(i);
+                    }
+                };
+                
+                switchCard.innerHTML = `
+                    <div class="switch-header">
+                        <h4 class="switch-number">스위치 ${i}</h4>
+                        <div class="switch-toggle" id="toggle-${i}"></div>
+                    </div>
+                    <div class="switch-body">
+                        <i class="fas ${switchData[i]?.icon || 'fa-power-off'} switch-icon" id="icon-${i}" onclick="editSwitchIcon(${i})" title="클릭하여 아이콘 변경" style="cursor: pointer;"></i>
+                        <div class="switch-label" id="label-${i}" ondblclick="editSwitchName(${i})" title="더블클릭하여 이름 변경">${switchData[i]?.name || `스위치 ${i}`}</div>
+                        <div class="switch-status" id="status-${i}">꺼짐</div>
+                    </div>
+                `;
+                
+                container.appendChild(switchCard);
+            }
+            isInitialized = true;
+        }
+
+        // 기존 카드의 상태만 업데이트 (깜빡임 없음)
+        function updateUI() {
+            if (!isInitialized) return;
             
             for (let i = 1; i <= 6; i++) {
                 const switchKey = `스위치${i}`;
                 const state = switchStates[switchKey] || 'OFF';
                 const isOn = state === 'ON';
                 
-                const col = document.createElement('div');
-                col.className = 'col-md-4 col-sm-6 mb-3';
+                const card = document.getElementById(`switch-${i}`);
+                const toggle = document.getElementById(`toggle-${i}`);
+                const status = document.getElementById(`status-${i}`);
                 
-                col.innerHTML = `
-                    <div class="switch-card glass-card p-3 d-flex flex-column justify-content-center align-items-center ${isOn ? 'switch-on' : 'switch-off'}" 
-                         onclick="toggleSwitch(${i})">
-                        <span class="status-badge badge ${isOn ? 'bg-success' : 'bg-secondary'}">
-                            ${isOn ? 'ON' : 'OFF'}
-                        </span>
-                        <i class="fas ${isOn ? 'fa-lightbulb' : 'fa-power-off'} fa-3x mb-3"></i>
-                        <h5 class="mb-1">스위치 ${i}</h5>
-                        <small>${switchNames[i-1]}</small>
-                        <div class="mt-2">
-                            <small class="opacity-75">클릭하여 ${isOn ? '끄기' : '켜기'}</small>
-                        </div>
-                    </div>
-                `;
-                
-                container.appendChild(col);
+                if (card && toggle && status) {
+                    // 상태가 실제로 변경된 경우에만 클래스 업데이트
+                    const wasActive = card.classList.contains('active');
+                    if (isOn !== wasActive) {
+                        if (isOn) {
+                            card.classList.add('active');
+                            toggle.classList.add('active');
+                        } else {
+                            card.classList.remove('active');
+                            toggle.classList.remove('active');
+                        }
+                    }
+                    
+                    status.textContent = isOn ? '켜짐' : '꺼짐';
+                }
             }
         }
-        
-        // 연결 상태 업데이트
+
         function updateConnectionStatus(connected) {
             const statusEl = document.getElementById('connection-status');
             if (connected) {
-                statusEl.innerHTML = '<i class="fas fa-check me-1"></i> 연결됨';
-                statusEl.className = 'badge bg-success';
+                statusEl.innerHTML = '<i class="fas fa-check-circle"></i> 연결됨';
+                statusEl.className = 'status-indicator status-connected';
             } else {
-                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> 연결 실패';
-                statusEl.className = 'badge bg-danger';
+                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> 연결 실패';
+                statusEl.className = 'status-indicator status-disconnected';
             }
         }
-        
-        // 스위치 토글
+
         async function toggleSwitch(switchNum) {
             const currentState = switchStates[`스위치${switchNum}`] || 'OFF';
             const newAction = currentState === 'ON' ? 'OFF' : 'ON';
             
+            // 즉시 UI 업데이트 (부드러운 반응)
+            switchStates[`스위치${switchNum}`] = newAction;
+            updateUI();
+            
+            // 클릭 피드백 효과
+            const card = document.getElementById(`switch-${switchNum}`);
+            if (card) {
+                card.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    card.style.transform = 'scale(1)';
+                }, 100);
+            }
+            
             try {
-                // UI 즉시 업데이트 (반응성 향상)
-                switchStates[`스위치${switchNum}`] = newAction;
-                updateUI();
-                
                 const response = await fetch('/api/control', {
                     method: 'POST',
                     headers: {
@@ -208,28 +1047,30 @@
                 const result = await response.json();
                 if (result.success) {
                     console.log(`✅ 스위치${switchNum} ${newAction} 성공`);
+                    // 성공하면 추가 상태 확인 불필요 - 이미 올바른 상태로 설정됨
                 } else {
-                    console.warn(`⚠️ 스위치${switchNum} ${newAction} 실패: ${result.message}`);
-                    // 실패시 원래 상태로 복원
+                    console.warn(`⚠️ 스위치${switchNum} ${newAction} 실패`);
+                    // 실패시에만 원래 상태로 복원
                     switchStates[`스위치${switchNum}`] = currentState;
                     updateUI();
                 }
-                
             } catch (error) {
                 console.error('제어 요청 실패:', error);
-                // 실패시 원래 상태로 복원
                 switchStates[`스위치${switchNum}`] = currentState;
                 updateUI();
             }
         }
-        
-        // 전체 스위치 제어
+
         async function controlAllSwitches(action) {
+            // 모든 스위치 상태를 즉시 업데이트
+            for (let i = 1; i <= 6; i++) {
+                switchStates[`스위치${i}`] = action;
+            }
+            updateUI();
+            
+            // 서버에 순차적으로 전송
             for (let i = 1; i <= 6; i++) {
                 try {
-                    switchStates[`스위치${i}`] = action;
-                    updateUI();
-                    
                     await fetch('/api/control', {
                         method: 'POST',
                         headers: {
@@ -241,12 +1082,349 @@
                         })
                     });
                     
-                    // 각 스위치 사이에 짧은 지연
                     await new Promise(resolve => setTimeout(resolve, 100));
-                    
                 } catch (error) {
                     console.error(`스위치${i} ${action} 실패:`, error);
+                    // 실패한 스위치만 원래 상태로 복원
+                    switchStates[`스위치${i}`] = action === 'ON' ? 'OFF' : 'ON';
                 }
+            }
+            updateUI(); // 최종 상태 업데이트
+        }
+
+        // 스케줄 관련 함수들
+        function showScheduleModal() {
+            const modal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+            updateScheduleOptions(); // 스케줄 모달 열 때 옵션 업데이트
+            modal.show();
+            loadSchedules();
+        }
+
+        async function loadSchedules() {
+            try {
+                const response = await fetch('/api/schedules');
+                const schedules = await response.json();
+                
+                const container = document.getElementById('scheduleListContainer');
+                
+                if (schedules.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="fas fa-calendar-times fa-2x mb-2"></i>
+                            <p>등록된 스케줄이 없습니다.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = '';
+                
+                const days = ['월', '화', '수', '목', '금', '토', '일'];
+
+                schedules.forEach(schedule => {
+                    const scheduleCard = document.createElement('div');
+                    scheduleCard.className = 'card mb-2';
+                    scheduleCard.style.borderRadius = '12px';
+                    scheduleCard.style.border = '1px solid #e5e5e7';
+                    
+                    scheduleCard.innerHTML = `
+                        <div class="card-body" style="padding: 15px;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <span class="badge bg-primary me-2">스위치 ${schedule.switch_num}</span>
+                                        ${schedule.name || '이름 없음'}
+                                    </h6>
+                                    <small class="text-muted">
+                                        ${days[schedule.day_of_week]}요일 
+                                        ${schedule.time_on ? `${schedule.time_on} ON` : ''} 
+                                        ${schedule.time_off ? `${schedule.time_off} OFF` : ''}
+                                        <br>
+                                        ${switchData[schedule.switch_num]?.name || `스위치 ${schedule.switch_num}`}
+                                    </small>
+                                </div>
+                                <button class="btn btn-outline-danger btn-sm" onclick="deleteSchedule(${schedule.id})" style="border-radius: 8px;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.appendChild(scheduleCard);
+                });
+
+            } catch (error) {
+                console.error('스케줄 로드 실패:', error);
+                document.getElementById('scheduleListContainer').innerHTML = `
+                    <div class="text-center text-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        스케줄을 불러올 수 없습니다.
+                    </div>
+                `;
+            }
+        }
+
+        async function saveSchedule() {
+            try {
+                const scheduleData = {
+                    switch_num: parseInt(document.getElementById('scheduleSwitch').value),
+                    day_of_week: parseInt(document.getElementById('scheduleDayOfWeek').value),
+                    time_on: document.getElementById('scheduleTimeOn').value || null,
+                    time_off: document.getElementById('scheduleTimeOff').value || null,
+                    name: document.getElementById('scheduleName').value || '이름 없음',
+                    enabled: true
+                };
+
+                // 유효성 검사
+                if (!scheduleData.time_on && !scheduleData.time_off) {
+                    alert('켜는 시간 또는 끄는 시간 중 하나는 입력해야 합니다.');
+                    return;
+                }
+
+                const response = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(scheduleData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 폼 초기화
+                    document.getElementById('scheduleTimeOn').value = '';
+                    document.getElementById('scheduleTimeOff').value = '';
+                    document.getElementById('scheduleName').value = '';
+                    
+                    // 스케줄 목록 새로고침
+                    loadSchedules();
+                    
+                    alert('✅ 스케줄이 추가되었습니다!');
+                } else {
+                    alert('❌ 스케줄 추가에 실패했습니다.');
+                }
+
+            } catch (error) {
+                console.error('스케줄 저장 실패:', error);
+                alert('❌ 스케줄 저장 중 오류가 발생했습니다.');
+            }
+        }
+
+        async function deleteSchedule(scheduleId) {
+            if (!confirm('이 스케줄을 삭제하시겠습니까?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/schedules/${scheduleId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    loadSchedules();
+                    alert('✅ 스케줄이 삭제되었습니다.');
+                } else {
+                    alert('❌ 스케줄 삭제에 실패했습니다.');
+                }
+
+            } catch (error) {
+                console.error('스케줄 삭제 실패:', error);
+                alert('❌ 스케줄 삭제 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 스위치 이름 편집 관련 함수들
+        function editSwitchName(switchNum) {
+            const labelElement = document.getElementById(`label-${switchNum}`);
+            const currentName = switchData[switchNum]?.name || `스위치 ${switchNum}`;
+            
+            // 인풋 필드 생성
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentName;
+            input.className = 'switch-label-input';
+            input.style.cssText = `
+                background: rgba(255,255,255,0.9);
+                border: 2px solid #007aff;
+                border-radius: 8px;
+                padding: 4px 8px;
+                font-size: 1.1rem;
+                font-weight: 500;
+                text-align: center;
+                width: 100%;
+                outline: none;
+            `;
+            
+            // 이벤트 리스너 추가
+            input.addEventListener('blur', () => saveSwitchName(switchNum, input.value));
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    input.blur();
+                }
+                if (e.key === 'Escape') {
+                    cancelEdit(switchNum);
+                }
+            });
+            
+            // 라벨을 인풋으로 교체
+            labelElement.innerHTML = '';
+            labelElement.appendChild(input);
+            input.focus();
+            input.select();
+        }
+
+        function cancelEdit(switchNum) {
+            const labelElement = document.getElementById(`label-${switchNum}`);
+            const currentName = switchData[switchNum]?.name || `스위치 ${switchNum}`;
+            labelElement.innerHTML = currentName;
+        }
+
+        function editSwitchIcon(switchNum) {
+            currentEditingSwitch = switchNum;
+            
+            // 현재 선택된 아이콘 표시
+            document.querySelectorAll('.icon-option').forEach(option => {
+                option.classList.remove('selected');
+                if (option.dataset.icon === switchData[switchNum]?.icon) {
+                    option.classList.add('selected');
+                }
+            });
+            
+            const modal = new bootstrap.Modal(document.getElementById('iconModal'));
+            modal.show();
+        }
+
+        async function saveSwitchName(switchNum, newName) {
+            const trimmedName = newName.trim();
+            
+            if (!trimmedName) {
+                alert('스위치 이름을 입력해주세요.');
+                cancelEdit(switchNum);
+                return;
+            }
+            
+            if (trimmedName.length > 20) {
+                alert('이름이 너무 깁니다. (최대 20자)');
+                cancelEdit(switchNum);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/switch-names/${switchNum}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: trimmedName })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 성공시 로컬 데이터 업데이트
+                    if (!switchData[switchNum]) switchData[switchNum] = {};
+                    switchData[switchNum].name = trimmedName;
+                    
+                    const labelElement = document.getElementById(`label-${switchNum}`);
+                    labelElement.innerHTML = trimmedName;
+                    labelElement.title = '더블클릭하여 이름 변경';
+                    
+                    // 스케줄 모달의 옵션도 업데이트
+                    updateScheduleOptions();
+                    
+                    console.log(`✅ 스위치${switchNum} 이름 변경: ${trimmedName}`);
+                } else {
+                    alert(`❌ 이름 변경 실패: ${result.message || '알 수 없는 오류'}`);
+                    cancelEdit(switchNum);
+                }
+                
+            } catch (error) {
+                console.error('스위치 이름 저장 실패:', error);
+                alert('❌ 이름 저장 중 오류가 발생했습니다.');
+                cancelEdit(switchNum);
+            }
+        }
+
+        async function saveSwitchIcon(switchNum, iconClass) {
+            try {
+                const response = await fetch(`/api/switch-icons/${switchNum}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ icon: iconClass })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 성공시 로컬 데이터 업데이트
+                    if (!switchData[switchNum]) switchData[switchNum] = {};
+                    switchData[switchNum].icon = iconClass;
+                    
+                    // 아이콘 요소 업데이트
+                    const iconElement = document.getElementById(`icon-${switchNum}`);
+                    if (iconElement) {
+                        iconElement.className = `fas ${iconClass} switch-icon`;
+                    }
+                    
+                    // 모달 닫기
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('iconModal'));
+                    modal.hide();
+                    
+                    console.log(`✅ 스위치${switchNum} 아이콘 변경: ${iconClass}`);
+                } else {
+                    alert(`❌ 아이콘 변경 실패: ${result.message || '알 수 없는 오류'}`);
+                }
+                
+            } catch (error) {
+                console.error('아이콘 저장 실패:', error);
+                alert('❌ 아이콘 저장 중 오류가 발생했습니다.');
+            }
+        }
+
+        function updateScheduleOptions() {
+            const selectElement = document.getElementById('scheduleSwitch');
+            if (selectElement) {
+                for (let i = 1; i <= 6; i++) {
+                    const option = selectElement.children[i-1];
+                    if (option) {
+                        option.textContent = `스위치 ${i} - ${switchData[i]?.name || `스위치 ${i}`}`;
+                    }
+                }
+            }
+        }
+
+        // 긴급 아이콘 리셋 함수
+        async function resetAllIcons() {
+            if (!confirm('🔄 모든 스위치 아이콘과 이름을 기본값으로 리셋하시겠습니까?\n\n기본 설정:\n• 스위치1: 메인 조명 💡\n• 스위치2: TV 📺\n• 스위치3: 에어컨 ❄️\n• 스위치4: 선풍기 🌀\n• 스위치5: 오디오 🎵\n• 스위치6: 기타 🏠')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/reset-icons', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ ' + result.message);
+                    // 페이지 새로고침으로 변경사항 적용
+                    location.reload();
+                } else {
+                    alert('❌ 리셋 실패: ' + (result.message || '알 수 없는 오류'));
+                }
+
+            } catch (error) {
+                console.error('아이콘 리셋 실패:', error);
+                alert('❌ 아이콘 리셋 중 오류가 발생했습니다.');
             }
         }
     </script>
